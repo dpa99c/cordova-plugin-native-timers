@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    id="cordova-plugin-native-timers"
+    version="0.1.0">
+    <name>Native Timers</name>
+    <description>Schedules native timers that can call back into JavaScript while the app is backgrounded.</description>
+    <license>UNLICENSED</license>
+    <keywords>cordova,native,timers,background</keywords>
+
+    <js-module src="www/native-timers.js" name="NativeTimers">
+        <clobbers target="cordova.plugins.nativeTimers" />
+    </js-module>
+
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="NativeTimers">
+                <param name="android-package" value="uk.co.workingedge.nativetimers.NativeTimersPlugin" />
+            </feature>
+        </config-file>
+        <config-file target="AndroidManifest.xml" parent="/*">
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
+        </config-file>
+        <source-file src="src/android/uk/co/workingedge/nativetimers/NativeTimersPlugin.java"
+            target-dir="src/uk/co/workingedge/nativetimers" />
+    </platform>
+
+    <platform name="ios">
+        <config-file target="config.xml" parent="/*">
+            <feature name="NativeTimers">
+                <param name="ios-package" value="NativeTimersPlugin" />
+            </feature>
+        </config-file>
+        <source-file src="src/ios/NativeTimersPlugin.swift" />
+    </platform>
+</plugin>

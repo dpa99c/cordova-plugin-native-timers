@@ -1,0 +1,35 @@
+{
+  "name": "cordova-plugin-native-timers",
+  "version": "0.1.0",
+  "description": "Cordova plugin for timers that continue while the app is backgrounded.",
+  "main": "www/native-timers.js",
+  "types": "types/index.d.ts",
+  "files": [
+    "plugin.xml",
+    "src/",
+    "types/",
+    "www/",
+    "README.md",
+    "tests/"
+  ],
+  "keywords": [
+    "cordova",
+    "native",
+    "timers",
+    "background"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "cordova": {
+    "id": "cordova-plugin-native-timers",
+    "platforms": [
+      "android",
+      "ios"
+    ]
+  },
+  "engines": {
+    "cordova": ">=11.0.0"
+  },
+  "license": "UNLICENSED"
+}
