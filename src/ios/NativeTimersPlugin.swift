@@ -144,7 +144,7 @@ class NativeTimersPlugin: CDVPlugin {
                 label: label,
                 intervalMs: intervalMs,
                 repeating: repeating,
-                dueAtMs: Date().timeIntervalSince1970 * 1000 + Double(delayMs),
+                dueAtMs: (Date().timeIntervalSince1970 * 1000 + Double(delayMs)).rounded(),
                 callbackId: command.callbackId,
                 source: source
             )
@@ -187,7 +187,7 @@ class NativeTimersPlugin: CDVPlugin {
     private func fireTimer(_ id: String) {
         guard let entry = timers[id] else { return }
 
-        let firedAtMs = Date().timeIntervalSince1970 * 1000
+        let firedAtMs = (Date().timeIntervalSince1970 * 1000).rounded()
         let lateMs = firedAtMs - entry.dueAtMs
         let event: [String: Any] = [
             "id": entry.id,
@@ -206,12 +206,21 @@ class NativeTimersPlugin: CDVPlugin {
             """
         )
         if lateMs > Self.lateLogThresholdMs {
-            logger.warning(
-                """
-                Timer fired late: id=\(entry.id, privacy: .public) \
-                label=\(entry.label, privacy: .public) lateMs=\(Int(lateMs), privacy: .public)
-                """
-            )
+            if entry.backgroundTask != nil {
+                logger.warning(
+                    """
+                    Timer fired late: id=\(entry.id, privacy: .public) \
+                    label=\(entry.label, privacy: .public) lateMs=\(Int(lateMs), privacy: .public)
+                    """
+                )
+            } else {
+                logger.debug(
+                    """
+                    Timer fired late: id=\(entry.id, privacy: .public) \
+                    label=\(entry.label, privacy: .public) lateMs=\(Int(lateMs), privacy: .public)
+                    """
+                )
+            }
         }
 
         if entry.repeating {

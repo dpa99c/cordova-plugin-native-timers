@@ -160,7 +160,12 @@ public class NativeTimersPlugin extends CordovaPlugin {
         entry.callback.sendPluginResult(result);
         Log.i(TAG, "Timer fired: id=" + entry.id + " label=" + entry.label + " lateMs=" + lateMs);
         if (lateMs > LATE_LOG_THRESHOLD_MS) {
-            Log.w(TAG, "Timer fired late: id=" + entry.id + " label=" + entry.label + " lateMs=" + lateMs);
+            String lateMessage = "Timer fired late: id=" + entry.id + " label=" + entry.label + " lateMs=" + lateMs;
+            if (entry.wakeLock != null) {
+                Log.w(TAG, lateMessage);
+            } else {
+                Log.d(TAG, lateMessage);
+            }
         }
 
         if (!entry.repeating) {
