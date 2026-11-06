@@ -26,9 +26,9 @@ Timer callbacks receive an event with the timer ID, label, scheduled wall-clock 
 
 ## Background behaviour
 
-On Android, the timer runs on a dedicated `HandlerThread`. Without a wake lock, Android's uptime-based scheduling does not advance during CPU deep sleep; short user-facing timers can set `wakeLock: true` to request a bounded partial wake lock. Wake locks are limited to delays of 60 seconds or less and are released when the timer fires or is cleared.
+On Android, the timer runs on a dedicated `HandlerThread`. Without a wake lock, Android's uptime-based scheduling does not advance during CPU deep sleep; short user-facing timers can set `wakeLock: true` to request a bounded partial wake lock. Wake locks are limited to delays of 60 seconds or less and are held for up to 3 seconds after firing so the JavaScript callback can run. Clearing a pending timer releases its wake lock immediately.
 
-On iOS, wall-clock deadlines avoid stretching the delay when the device sleeps. Setting `wakeLock: true` requests a finite background task so the app can finish the timer callback. iOS may still suspend an app when the operating system ends that task.
+On iOS, wall-clock deadlines avoid stretching the delay when the device sleeps. Setting `wakeLock: true` requests a finite background task so the app can finish the timer callback. The task is held for up to 3 seconds after firing so the JavaScript callback can run; clearing a pending timer ends it immediately. iOS may still suspend an app when the operating system ends that task.
 
 These timers are not a replacement for durable background jobs or alarms. Platform policies can delay execution, and native timer callbacks should remain short.
 

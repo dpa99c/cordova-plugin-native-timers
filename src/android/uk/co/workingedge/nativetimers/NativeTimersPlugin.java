@@ -21,6 +21,8 @@ import org.json.JSONObject;
 public class NativeTimersPlugin extends CordovaPlugin {
     private static final String TAG = "NativeTimers";
     private static final long WAKE_LOCK_MARGIN_MS = 5000L;
+    /** Keeps JavaScript callback delivery awake briefly after the native timer fires. */
+    private static final long POST_FIRE_WAKE_LOCK_HOLD_MS = 3000L;
     private static final long MAX_WAKE_LOCK_DELAY_MS = 60000L;
     private static final long LATE_LOG_THRESHOLD_MS = 1000L;
     private static final long MIN_INTERVAL_MS = 100L;
@@ -163,7 +165,12 @@ public class NativeTimersPlugin extends CordovaPlugin {
 
         if (!entry.repeating) {
             timers.remove(entry.id, entry);
-            releaseWakeLock(entry.wakeLock);
+            if (entry.wakeLock != null) {
+                timerHandler.postDelayed(
+                    () -> releaseWakeLock(entry.wakeLock),
+                    POST_FIRE_WAKE_LOCK_HOLD_MS
+                );
+            }
             return;
         }
 

@@ -5,7 +5,7 @@
     version="0.1.0">
     <name>Native Timers</name>
     <description>Schedules native timers that can call back into JavaScript while the app is backgrounded.</description>
-    <license>UNLICENSED</license>
+    <license>Apache-2.0</license>
     <keywords>cordova,native,timers,background</keywords>
 
     <js-module src="www/native-timers.js" name="NativeTimers">
