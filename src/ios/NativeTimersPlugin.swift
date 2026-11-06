@@ -3,20 +3,37 @@ import Foundation
 import OSLog
 import UIKit
 
-private final class BackgroundTaskIdentifierBox: @unchecked Sendable {
+/** Wraps one UIKit background task so every end path is thread-safe and idempotent. */
+private final class TimerBackgroundTask: @unchecked Sendable {
     private let lock = NSLock()
-    private var value = UIBackgroundTaskIdentifier.invalid
+    private var identifier = UIBackgroundTaskIdentifier.invalid
+    private var ended = false
 
-    func set(_ value: UIBackgroundTaskIdentifier) {
+    /** Begins the task on the main thread; returns false when UIKit refuses it. */
+    func begin(name: String, onExpire: @escaping () -> Void) -> Bool {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let taskId = UIApplication.shared.beginBackgroundTask(withName: name) { [self] in
+            // UIKit requires an expired background task to end before this handler returns.
+            self.end()
+            onExpire()
+        }
         lock.lock()
-        self.value = value
+        identifier = taskId
         lock.unlock()
+        return taskId != .invalid
     }
 
-    func get() -> UIBackgroundTaskIdentifier {
+    /** Ends the task once; later calls are no-ops. Safe from any thread. */
+    func end() {
         lock.lock()
-        defer { lock.unlock() }
-        return value
+        guard !ended, identifier != .invalid else {
+            lock.unlock()
+            return
+        }
+        ended = true
+        let taskId = identifier
+        lock.unlock()
+        UIApplication.shared.endBackgroundTask(taskId)
     }
 }
 
@@ -100,10 +117,15 @@ class NativeTimersPlugin: CDVPlugin {
         let wakeLock = !repeating && options["wakeLock"] as? Bool == true
         let intervalMs = repeating ? delayMs : 0
 
-        var taskId = UIBackgroundTaskIdentifier.invalid
+        var backgroundTask: TimerBackgroundTask?
         if wakeLock {
-            taskId = beginBackgroundTask(id: id, label: label)
-            guard taskId != .invalid else {
+            let task = TimerBackgroundTask()
+            let started = task.begin(name: "NativeTimers:\(label)") { [weak self] in
+                self?.logger.warning(
+                    "Background task expired: id=\(id, privacy: .public) label=\(label, privacy: .public)"
+                )
+            }
+            guard started else {
                 sendError(
                     command.callbackId,
                     code: "BACKGROUND_TASK_UNAVAILABLE",
@@ -111,6 +133,7 @@ class NativeTimersPlugin: CDVPlugin {
                 )
                 return
             }
+            backgroundTask = task
         }
 
         timerQueue.async {
@@ -126,7 +149,7 @@ class NativeTimersPlugin: CDVPlugin {
                 source: source
             )
 
-            entry.backgroundTaskId = taskId
+            entry.backgroundTask = backgroundTask
 
             let scheduledAt = DispatchWallTime.now() + .milliseconds(delayMs)
             if repeating {
@@ -197,15 +220,15 @@ class NativeTimersPlugin: CDVPlugin {
                 entry.dueAtMs += intervalMs
             } while entry.dueAtMs <= firedAtMs
         } else {
-            let taskId = entry.backgroundTaskId
-            entry.backgroundTaskId = .invalid
+            let task = entry.backgroundTask
+            entry.backgroundTask = nil
             timers.removeValue(forKey: id)
             entry.source.cancel()
-            if taskId != .invalid {
+            if let task = task {
                 DispatchQueue.main.asyncAfter(
                     deadline: .now() + .milliseconds(Self.postFireBackgroundTaskHoldMs)
                 ) {
-                    UIApplication.shared.endBackgroundTask(taskId)
+                    task.end()
                 }
             }
         }
@@ -214,8 +237,8 @@ class NativeTimersPlugin: CDVPlugin {
     private func clearTimer(_ id: String) {
         guard let entry = timers.removeValue(forKey: id) else { return }
         entry.source.cancel()
-        endBackgroundTask(entry.backgroundTaskId)
-        entry.backgroundTaskId = .invalid
+        entry.backgroundTask?.end()
+        entry.backgroundTask = nil
         commandDelegate.send(
             CDVPluginResult(status: .noResult),
             callbackId: entry.callbackId
@@ -226,44 +249,6 @@ class NativeTimersPlugin: CDVPlugin {
     private func clearAllTimers() {
         for id in Array(timers.keys) {
             clearTimer(id)
-        }
-    }
-
-    private func beginBackgroundTask(id: String, label: String) -> UIBackgroundTaskIdentifier {
-        dispatchPrecondition(condition: .onQueue(.main))
-        let taskIdBox = BackgroundTaskIdentifierBox()
-        let taskId = UIApplication.shared.beginBackgroundTask(withName: "NativeTimers:\(label)") { [weak self] in
-            guard let self else { return }
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                let expiredTaskId = taskIdBox.get()
-                self.timerQueue.async {
-                    guard let entry = self.timers[id],
-                          entry.backgroundTaskId == expiredTaskId else { return }
-                    entry.backgroundTaskId = .invalid
-                    self.endBackgroundTask(expiredTaskId)
-                    self.logger.warning(
-                        """
-                        Background task expired: id=\(id, privacy: .public) \
-                        label=\(label, privacy: .public)
-                        """
-                    )
-                }
-            }
-        }
-        taskIdBox.set(taskId)
-        return taskId
-    }
-
-    private func endBackgroundTask(_ taskId: UIBackgroundTaskIdentifier) {
-        guard taskId != .invalid else { return }
-        let endTask = {
-            UIApplication.shared.endBackgroundTask(taskId)
-        }
-        if Thread.isMainThread {
-            endTask()
-        } else {
-            DispatchQueue.main.async(execute: endTask)
         }
     }
 
@@ -306,7 +291,7 @@ class NativeTimersPlugin: CDVPlugin {
         let callbackId: String
         let source: DispatchSourceTimer
         var dueAtMs: Double
-        var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+        var backgroundTask: TimerBackgroundTask?
 
         init(
             id: String,
