@@ -1,4 +1,5 @@
 import Cordova
+import Cordova
 import Foundation
 import OSLog
 import UIKit
@@ -171,7 +172,7 @@ class NativeTimersPlugin: CDVPlugin {
             self.timers[id] = entry
 
             let pending = CDVPluginResult(status: .noResult)
-            pending.setKeepCallbackAs(true)
+            pending!.setKeepCallbackAs(true)
             self.commandDelegate.send(pending, callbackId: command.callbackId)
             self.logger.debug(
                 """
@@ -196,8 +197,8 @@ class NativeTimersPlugin: CDVPlugin {
             "firedAt": firedAtMs,
             "lateMs": lateMs
         ]
-        let result = CDVPluginResult(status: .ok, messageAs: event)
-        result.setKeepCallbackAs(entry.repeating)
+        let result = CDVPluginResult(status: .ok, messageAs: event);
+        result?.setKeepCallbackAs(entry.repeating)
         commandDelegate.send(result, callbackId: entry.callbackId)
         logger.info(
             """
